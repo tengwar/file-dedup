@@ -1,0 +1,7 @@
+[package]
+name = "image-dedup"
+version = "0.1.0"
+authors = ["Grzegorz G. <tengwar@users.noreply.github.com>"]
+
+[dependencies]
+error-chain = "0.10.0"
