@@ -72,7 +72,7 @@ pub fn find_duplicates(list: Vec<PathBuf>) -> Result<Vec<Vec<PathBuf>>> {
 
 	// Mark duplicates.
 	let mut current_group: usize = 0;
-	let mut group_used = false; // TODO: use it.
+	let mut group_used = false;
 	for (i, path1) in list.iter().enumerate() {
 		if sameness_table[i] < current_group {
 			continue; // File1 is already a duplicate of some other file.
@@ -97,37 +97,6 @@ pub fn find_duplicates(list: Vec<PathBuf>) -> Result<Vec<Vec<PathBuf>>> {
 			current_group += 1;
 		}
 	}
-	/*for (i, path1) in list.iter().enumerate() {
-		if sameness_table[i] < i {
-			continue; // File1 is already a duplicate of some other file.
-		}
-
-		for (j, path2) in list.iter().enumerate().skip(i+1) {
-			if sameness_table[j] < i {
-				continue; // File2 is already a duplicate of some other file.
-			}
-
-			let identical = are_files_identical(path1, path2)
-				.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
-				                      path1.display(),
-				                      path2.display()))?;
-			if identical {
-				sameness_table[i] = i;
-				sameness_table[j] = i;
-			}
-		}
-	}
-
-	// TODO: to which vector do I push dupes? Maybe rethink the algorithm?
-	// Group duplicates.
-	for (index, elem) in sameness_table.iter().enumerate() {
-		if elem != usize::MAX {
-			if index == elem { // This is the first of several identical files.
-				identical_files.push(Vec::new());
-			}
-
-		}
-	}*/
 
 	// Group duplicates.
 	for (index, &elem) in sameness_table.iter().enumerate() {

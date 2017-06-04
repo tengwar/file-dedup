@@ -33,7 +33,7 @@ fn main() {
 			writeln!(stderr, "caused by: {}", e).expect(errmsg);
 		}
 
-		// The backtrace is not always generated. Try to run this example
+		// The backtrace is not always generated. Try to run this program
 		// with `RUST_BACKTRACE=1`.
 		if let Some(backtrace) = e.backtrace() {
 			writeln!(stderr, "backtrace: {:?}", backtrace).expect(errmsg);
@@ -93,19 +93,6 @@ fn run() -> errors::Result<()> {
 			let mut some_dupes = &mut helper::find_duplicates(paths) // TODO: use human-readable sizes below.
 				.chain_err(|| format!("Error finding duplicates among files with the size of {} bytes.", size))?;
 			identical_files.append(some_dupes);
-			/*while !paths.is_empty() {
-				let i: u64 = 0;
-				while i < paths.len() {
-					// TODO: maybe try without mutable state?
-				}
-			}*/
-			/*let identical = helper::are_files_identical(duplicate, dir_pathbuf.as_path())
-				.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
-									  duplicate.display(),
-									  dir_pathbuf.display()))?;
-			if identical {
-				println!("Duplicate files: \"{}\" and \"{}\"", duplicate.display(), dir_pathbuf.display());
-			}*/
 		}
 	}
 
