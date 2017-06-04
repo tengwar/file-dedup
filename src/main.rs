@@ -3,6 +3,8 @@
 
 #[macro_use]
 extern crate error_chain;
+extern crate multimap;
+extern crate clap;
 
 // We'll put our errors in an `errors` module, and other modules in
 // this crate will `use errors::*;` to get access to everything
@@ -14,9 +16,9 @@ mod errors {
 mod helper;
 
 use std::fs::DirEntry;
-use std::path::{Path,PathBuf};
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::path::PathBuf;
+use multimap::MultiMap;
+use clap::Arg;
 use errors::*;
 
 fn main() {
@@ -44,31 +46,76 @@ fn main() {
 // Most functions will return the `Result` type, imported from the
 // `errors` module. It is a typedef of the standard `Result` type
 // for which the error type is always our own `Error`.
-fn run() -> Result<()> {
-	let paths = [Path::new("/home/elgregor/Obrazy"), Path::new("/home/elgregor/testing_folder2")];
-	let mut files_by_length: HashMap<u64, PathBuf> = HashMap::new();
+fn run() -> errors::Result<()> {
+	let mut same_length_files: MultiMap<u64, PathBuf> = MultiMap::new();
+	let mut identical_files: Vec<Vec<PathBuf>> = Vec::new();
 
-	for path in &paths {
+	// Process cmdline
+	let clap_matches = clap::App::new("file-dedup")
+		.version("0.1")
+		.about("Finds identical files.")
+		.author("Grzegorz G.")
+		.arg(Arg::with_name("verbose")
+			.short("v")
+			.long("verbose")
+			.multiple(true)
+			.help("Sets the level of verbosity"))
+		.arg(Arg::with_name("DIR")
+			.multiple(true)
+			.required(true)
+			.help("Paths to directories that will be searched for duplicate files"))
+		.get_matches();
+
+	let input_paths: Vec<PathBuf> = clap_matches.values_of_os("DIR")
+		.expect("DIR is required, so at least one is always present.")
+		.map(|os_str| PathBuf::from(os_str))
+		.collect();
+
+	let verbosity_level = clap_matches.occurrences_of("verbose");
+
+	// Find files with the exact same size.
+	for path in &input_paths {
 		helper::visit_dirs(path, &mut |dir_entry: &DirEntry| -> Result<()> {
 			let dir_pathbuf = dir_entry.path();
-			//println!("{}", dir_pathbuf.display()); // TODO: Remove this debug println.
+			if verbosity_level > 0 {
+				println!("{}", dir_pathbuf.display());
+			}
 			let metadata = dir_entry.metadata()
 			                        .chain_err(|| format!("Couldn't get metadata of \"{}\"", dir_pathbuf.display()))?;
-			match files_by_length.entry(metadata.len()) {
-				Entry::Occupied(occupied_entry) => {
-					let duplicate = occupied_entry.get();
-					let identical = helper::are_files_identical(duplicate, dir_pathbuf.as_path())
-						.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
-						                      duplicate.display(),
-						                      dir_pathbuf.display()))?;
-					if identical {
-						println!("Duplicate files: \"{}\" and \"{}\"", duplicate.display(), dir_pathbuf.display());
-					}
-				},
-				Entry::Vacant(entry) => { entry.insert(dir_entry.path()); }
-			}
+			same_length_files.insert(metadata.len(), dir_pathbuf);
 			Ok(())
 		})?;
+	}
+
+	// Check same-size files to find identical ones.
+	for (size, paths) in same_length_files {
+		if paths.len() > 1 {
+			let mut some_dupes = &mut helper::find_duplicates(paths) // TODO: use human-readable sizes below.
+				.chain_err(|| format!("Error finding duplicates among files with the size of {} bytes.", size))?;
+			identical_files.append(some_dupes);
+			/*while !paths.is_empty() {
+				let i: u64 = 0;
+				while i < paths.len() {
+					// TODO: maybe try without mutable state?
+				}
+			}*/
+			/*let identical = helper::are_files_identical(duplicate, dir_pathbuf.as_path())
+				.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
+									  duplicate.display(),
+									  dir_pathbuf.display()))?;
+			if identical {
+				println!("Duplicate files: \"{}\" and \"{}\"", duplicate.display(), dir_pathbuf.display());
+			}*/
+		}
+	}
+
+	// Print duplicate files.
+	for group in identical_files {
+		for pathbuf in group {
+			println!("{}", &pathbuf.display());
+			// TODO: maybe warn if the files are identical because they are empty?
+		}
+		println!();
 	}
 
 	Ok(())

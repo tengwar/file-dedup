@@ -1,7 +1,8 @@
 use std::fs::{DirEntry, File, read_dir};
 use std::io::{BufReader, Read};
-//use std::iter::Iterator;
-use std::path::Path;
+use std::iter::Iterator;
+use std::path::{Path, PathBuf};
+use std::usize;
 use errors::*;
 
 pub fn visit_dirs(dir: &Path, command: &mut FnMut(&DirEntry) -> Result<()>) -> Result<()> {
@@ -20,7 +21,7 @@ pub fn visit_dirs(dir: &Path, command: &mut FnMut(&DirEntry) -> Result<()>) -> R
 		}
 		Ok(())
 	} else {
-		bail!(format!("The path \"{}\" is not a directory.", dir.display()));
+		bail!(format!("The path \"{}\" is not a valid directory.", dir.display()));
 	}
 }
 
@@ -61,4 +62,82 @@ pub fn are_files_identical(path1: &Path, path2: &Path) -> Result<bool> {
 		bail!("Expected 2 files for comparison, got a file (\"{}\") and a directory (\"{}\").",
 			file.display(), dir.display());
 	}
+}
+
+pub fn find_duplicates(list: Vec<PathBuf>) -> Result<Vec<Vec<PathBuf>>> {
+	// TODO: make it more generic, accept iter and a lambda.
+	// TODO: maybe use Option<usize>::None instead of a special value usize::MAX?
+	let mut identical_files: Vec<Vec<PathBuf>> = Vec::new();
+	let mut sameness_table: Vec<usize> = vec![usize::MAX; list.len()];
+
+	// Mark duplicates.
+	let mut current_group: usize = 0;
+	let mut group_used = false; // TODO: use it.
+	for (i, path1) in list.iter().enumerate() {
+		if sameness_table[i] < current_group {
+			continue; // File1 is already a duplicate of some other file.
+		}
+
+		for (j, path2) in list.iter().enumerate().skip(i+1) {
+			if sameness_table[j] < current_group {
+				continue; // File2 is already a duplicate of some other file.
+			}
+
+			let identical = are_files_identical(path1, path2)
+				.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
+				                      path1.display(),
+				                      path2.display()))?;
+			if identical {
+				sameness_table[i] = current_group;
+				sameness_table[j] = current_group;
+				group_used = true;
+			}
+		}
+		if group_used {
+			current_group += 1;
+		}
+	}
+	/*for (i, path1) in list.iter().enumerate() {
+		if sameness_table[i] < i {
+			continue; // File1 is already a duplicate of some other file.
+		}
+
+		for (j, path2) in list.iter().enumerate().skip(i+1) {
+			if sameness_table[j] < i {
+				continue; // File2 is already a duplicate of some other file.
+			}
+
+			let identical = are_files_identical(path1, path2)
+				.chain_err(|| format!("Couldn't compare these files: \"{}\" and \"{}\"",
+				                      path1.display(),
+				                      path2.display()))?;
+			if identical {
+				sameness_table[i] = i;
+				sameness_table[j] = i;
+			}
+		}
+	}
+
+	// TODO: to which vector do I push dupes? Maybe rethink the algorithm?
+	// Group duplicates.
+	for (index, elem) in sameness_table.iter().enumerate() {
+		if elem != usize::MAX {
+			if index == elem { // This is the first of several identical files.
+				identical_files.push(Vec::new());
+			}
+
+		}
+	}*/
+
+	// Group duplicates.
+	for (index, &elem) in sameness_table.iter().enumerate() {
+		if elem != usize::MAX {
+			if identical_files.len() <= elem { // This is the first of several identical files.
+				identical_files.push(Vec::new());
+			}
+			identical_files[elem].push(list[index].clone()); // TODO: is copying needed here?
+		}
+	}
+
+	return Ok(identical_files);
 }
